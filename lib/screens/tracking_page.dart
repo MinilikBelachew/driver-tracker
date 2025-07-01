@@ -27,6 +27,7 @@ class TrackingPage extends StatefulWidget {
 
 class _TrackingPageState extends State<TrackingPage> {
   LatLng? _currentPosition;
+  double? _currentSpeed; // <-- ADD THIS: To store the speed
   StreamSubscription<Map<dynamic, dynamic>>? _locationSubscription;
   final MapController _mapController = MapController();
   int _selectedIndex = 0;
@@ -45,6 +46,7 @@ class _TrackingPageState extends State<TrackingPage> {
         _handleLocationUpdate,
         onError: (error) {
           print("Location stream error: $error");
+          if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text("Location update error: $error"),
@@ -66,8 +68,9 @@ class _TrackingPageState extends State<TrackingPage> {
       );
     } catch (e) {
       print("Failed to start service: $e");
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text("Failed to start location service"),
           behavior: SnackBarBehavior.floating,
         ),
@@ -75,12 +78,17 @@ class _TrackingPageState extends State<TrackingPage> {
     }
   }
 
+  // --- THIS METHOD IS UPDATED ---
   void _handleLocationUpdate(Map<dynamic, dynamic> locationData) {
     if (!mounted) return;
 
     final newPosition = LatLng(locationData['lat'], locationData['lng']);
+    // Extract speed. It might be null or not present initially.
+    final newSpeed = locationData['speed'] as double?;
+
     setState(() {
       _currentPosition = newPosition;
+      _currentSpeed = newSpeed; // <-- SET THE SPEED
     });
 
     if (_selectedIndex == 0 && _isMapReady) {
@@ -99,6 +107,9 @@ class _TrackingPageState extends State<TrackingPage> {
   Widget build(BuildContext context) {
     final mapStyleProvider = Provider.of<MapStyleProvider>(context);
     final theme = Theme.of(context);
+    
+    // Convert speed from m/s to km/h, defaulting to 0 if null.
+    final speedInKmh = (_currentSpeed ?? 0) * 3.6;
 
     final List<Widget> widgetOptions = [
       Stack(
@@ -109,9 +120,7 @@ class _TrackingPageState extends State<TrackingPage> {
               initialCenter: _currentPosition ?? const LatLng(0, 0),
               initialZoom: 15.0,
               onMapReady: () {
-                setState(() {
-                  _isMapReady = true;
-                });
+                setState(() => _isMapReady = true);
                 if (_currentPosition != null) {
                   _mapController.move(_currentPosition!, _mapController.camera.zoom);
                 }
@@ -130,7 +139,7 @@ class _TrackingPageState extends State<TrackingPage> {
                       width: 80,
                       height: 80,
                       child: Transform.rotate(
-                        angle: 45,
+                        angle: 45, // You could update this with bearing/course later
                         child: Icon(
                           Icons.navigation,
                           color: theme.primaryColor,
@@ -142,13 +151,14 @@ class _TrackingPageState extends State<TrackingPage> {
                 ),
             ],
           ),
+          // --- THIS UI WIDGET IS UPDATED ---
           if (_currentPosition != null)
             Positioned(
               top: 20,
               left: 20,
               right: 20,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(12),
@@ -167,13 +177,6 @@ class _TrackingPageState extends State<TrackingPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Current Location',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
                           'Lat: ${_currentPosition!.latitude.toStringAsFixed(5)}',
                           style: theme.textTheme.bodyMedium,
                         ),
@@ -183,7 +186,22 @@ class _TrackingPageState extends State<TrackingPage> {
                         ),
                       ],
                     ),
-                    Icon(Icons.location_on, color: theme.primaryColor),
+                    // Speed Display Column
+                    Column(
+                      children: [
+                        Text(
+                          speedInKmh.toStringAsFixed(1),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.primaryColor,
+                          ),
+                        ),
+                        Text(
+                          "km/h",
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -196,7 +214,7 @@ class _TrackingPageState extends State<TrackingPage> {
         onLogout: widget.onLogout,
       ),
     ];
-
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(

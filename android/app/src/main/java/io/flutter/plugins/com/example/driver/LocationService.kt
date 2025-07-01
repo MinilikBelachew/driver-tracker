@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.location.Location // <-- ADDED for type hinting
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -44,19 +45,22 @@ class LocationService : Service() {
             Log.d("LocationService", "Event sink ${if (sink != null) "set" else "cleared"}")
         }
 
-        private fun sendLocationUpdate(lat: Double, lng: Double) {
+        // <-- MODIFIED: This function is now more capable
+        private fun sendUiUpdate(location: Location) {
             if (!hasActiveListeners) return
-            
+
             try {
                 Handler(Looper.getMainLooper()).post {
+                    // Send a map including the speed to the Flutter UI
                     eventSink?.success(mapOf(
-                        "lat" to lat,
-                        "lng" to lng,
+                        "lat" to location.latitude,
+                        "lng" to location.longitude,
+                        "speed" to location.speed.toDouble(), // <-- ADDED: Send speed to Flutter
                         "timestamp" to System.currentTimeMillis()
                     ))
                 }
             } catch (e: Exception) {
-                Log.e("LocationService", "Error sending location update", e)
+                Log.e("LocationService", "Error sending location update to UI", e)
             }
         }
     }
@@ -70,13 +74,12 @@ class LocationService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("LocationService", "Service starting")
 
-        // Handle potential null intent (system restart)
         if (intent == null) {
             val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             token = prefs.getString("flutter.token", null)
             driverId = prefs.getInt("flutter.driverId", -1)
             serverUrl = prefs.getString("flutter.serverUrl", null)
-            
+
             if (token == null || driverId == -1 || serverUrl == null) {
                 stopSelf()
                 return START_NOT_STICKY
@@ -88,7 +91,7 @@ class LocationService : Service() {
         }
 
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startForeground(NOTIFICATION_ID, buildNotification("Your location is being shared"))
 
         if (token != null && driverId != -1 && serverUrl != null) {
             startLocationUpdates()
@@ -100,15 +103,23 @@ class LocationService : Service() {
         return START_STICKY
     }
 
-    private fun buildNotification(): Notification {
+    // <-- MODIFIED: Added a parameter to update the notification text
+    private fun buildNotification(contentText: String): Notification {
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle("Driver Tracking Active")
-            .setContentText("Your location is being shared in real-time")
+            .setContentText(contentText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()
+    }
+
+    // <-- ADDED: Helper to update the notification text dynamically
+    private fun updateNotification(contentText: String) {
+        val notification = buildNotification(contentText)
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel() {
@@ -120,7 +131,6 @@ class LocationService : Service() {
             ).apply {
                 description = "Channel for location tracking service"
             }
-
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
         }
@@ -136,10 +146,17 @@ class LocationService : Service() {
         }.build()
 
         locationCallback = object : LocationCallback() {
+            // <-- MODIFIED: This is the core logic change
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
-                    Log.d("LocationService", "New location: ${location.latitude}, ${location.longitude}")
-                    sendLocationToServer(location.latitude, location.longitude)
+                    val speedKmh = location.speed * 3.6 // Convert m/s to km/h
+                    Log.d("LocationService", "New location: ${location.latitude}, ${location.longitude}, Speed: ${speedKmh.format(1)} km/h")
+                    
+                    // Send all data (including speed) to the server and UI
+                    sendLocationData(location)
+                    
+                    // Update the notification with the current speed
+                    updateNotification("Current speed: ${speedKmh.format(1)} km/h")
                 }
             }
         }
@@ -163,21 +180,11 @@ class LocationService : Service() {
                 transports = arrayOf("websocket")
                 auth = mapOf("token" to token)
                 reconnection = true
-                reconnectionAttempts = Int.MAX_VALUE
-                reconnectionDelay = 1000
-                reconnectionDelayMax = 5000
             }
-            
             socket = IO.socket(serverUrl, opts).apply {
-                on(Socket.EVENT_CONNECT) {
-                    Log.i("LocationService", "Socket connected")
-                }
-                on(Socket.EVENT_DISCONNECT) { args ->
-                    Log.w("LocationService", "Socket disconnected: ${args.joinToString()}")
-                }
-                on(Socket.EVENT_CONNECT_ERROR) { args ->
-                    Log.e("LocationService", "Socket connect error: ${args[0]}")
-                }
+                on(Socket.EVENT_CONNECT) { Log.i("LocationService", "Socket connected") }
+                on(Socket.EVENT_DISCONNECT) { args -> Log.w("LocationService", "Socket disconnected: ${args.joinToString()}") }
+                on(Socket.EVENT_CONNECT_ERROR) { args -> Log.e("LocationService", "Socket connect error: ${args[0]}") }
                 connect()
             }
             Log.d("LocationService", "Socket connection initiated")
@@ -187,33 +194,31 @@ class LocationService : Service() {
         }
     }
 
-    private fun sendLocationToServer(lat: Double, lng: Double) {
-        // Send to server
+    // <-- MODIFIED: This function now handles sending all data
+    private fun sendLocationData(location: Location) {
+        // 1. Send to server via Socket.IO
         if (socket?.connected() == true) {
             val locationData = JSONObject().apply {
                 put("driverId", driverId)
-                put("lat", lat)
-                put("lng", lng)
+                put("lat", location.latitude)
+                put("lng", location.longitude)
+                put("speed", location.speed) // <-- ADDED: speed in m/s
                 put("token", token)
                 put("timestamp", System.currentTimeMillis())
             }
             socket?.emit("driverLocation", locationData)
         }
-        
-        // Send to Flutter
-        sendLocationUpdate(lat, lng)
+
+        // 2. Send to Flutter UI via EventChannel
+        sendUiUpdate(location)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.d("LocationService", "Service destroyed - cleaning up")
-        
         try {
             fusedLocationClient.removeLocationUpdates(locationCallback)
             socket?.disconnect()
-            socket = null
-            eventSink = null
-            hasActiveListeners = false
         } catch (e: Exception) {
             Log.e("LocationService", "Error during cleanup", e)
         }
@@ -221,3 +226,6 @@ class LocationService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 }
+
+// <-- ADDED: A small helper extension function for formatting
+fun Float.format(digits: Int) = "%.${digits}f".format(this)
