@@ -1,33 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../auth/login_page.dart';
-import '../providers/map_style_provider.dart';
-import '../providers/theme_provider.dart';
-import '../screens/tracking_page.dart';
-import '../services/native_location_service.dart';
-
-import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-
+// import 'app.dart';
+import '../screens/auth/login_page.dart';
+import 'providers/theme_provider.dart';
+import 'screens/main_screen.dart';
+import 'providers/driver_location_provider.dart';
+import 'providers/route_provider.dart';
+import 'providers/auth_provider.dart';
+import '../services/native_location_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final themeProvider = ThemeProvider();
-  await themeProvider.loadTheme();
-  final mapStyleProvider = MapStyleProvider();
-  await mapStyleProvider.loadMapStyle();
-
+  await dotenv.load(fileName: ".env");
+  
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => themeProvider),
-        ChangeNotifierProvider(create: (_) => mapStyleProvider),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => DriverLocationProvider()),
+        ChangeNotifierProvider(create: (_) => RouteProvider()),
       ],
       child: const MyApp(),
     ),
   );
 }
+
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -165,6 +166,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     if (_isLoadingAuth) {
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -174,14 +176,43 @@ class _MyAppState extends State<MyApp> {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
-          title: 'Driver Tracker',
-          debugShowCheckedModeBanner: false,
-          themeMode: themeProvider.themeMode,
-          theme: ThemeData.light(useMaterial3: true),
-          darkTheme: ThemeData.dark(useMaterial3: true),
+      debugShowCheckedModeBanner: false,
+      title: 'Smart Route Planner',
+      themeMode: themeProvider.currentMode,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.light,
+        ),
+        primarySwatch: Colors.blue,
+        brightness: Brightness.light,
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.grey[50],
+        appBarTheme: AppBarTheme(
+          elevation: 0,
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+        ),
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        brightness: Brightness.dark,
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.grey[900],
+        appBarTheme: AppBarTheme(
+          elevation: 0,
+          centerTitle: true,
+          backgroundColor: Colors.grey[850],
+          foregroundColor: Colors.white,
+        ),
+      ),
           home: _token == null
               ? LoginPage(onLoggedIn: _onLoggedIn, serverUrl: _serverUrl)
-              : TrackingPage(
+              : MainScreen(
                   token: _token!,
                   driverId: _driverId!,
                   driverName: _driverName!,
