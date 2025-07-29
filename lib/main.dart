@@ -1,16 +1,17 @@
+import 'package:driver/screens/main_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:provider/provider.dart';
-// import 'app.dart';
-import '../screens/auth/login_page.dart';
-import 'providers/theme_provider.dart';
-import 'screens/main_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../auth/login_page.dart';
+import '../providers/theme_provider.dart';
+
+import '../services/native_location_service.dart';
 import 'providers/driver_location_provider.dart';
 import 'providers/route_provider.dart';
-import 'providers/auth_provider.dart';
-import '../services/native_location_service.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,7 +21,6 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => DriverLocationProvider()),
         ChangeNotifierProvider(create: (_) => RouteProvider()),
       ],
@@ -42,7 +42,8 @@ class _MyAppState extends State<MyApp> {
   int? _driverId;
   String? _driverName;
   bool _isLoadingAuth = true;
-  final String _serverUrl = 'https://driver-cotrolling.onrender.com'; // Ensure this is your correct IP
+  final String _serverUrl =
+      'https://driver-cotrolling.onrender.com'; // Ensure this is your correct IP
 
   @override
   void initState() {
@@ -74,24 +75,26 @@ class _MyAppState extends State<MyApp> {
       if (mounted) {
         await showDialog(
           context: context,
-          builder: (BuildContext dialogContext) => AlertDialog(
-            title: const Text('Location Permission Required'),
-            content: const Text(
-                'This app needs location access to track the driver. Please grant the permission in the app settings.'),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Cancel'),
-                onPressed: () => Navigator.of(dialogContext).pop(),
+          builder:
+              (BuildContext dialogContext) => AlertDialog(
+                title: const Text('Location Permission Required'),
+                content: const Text(
+                  'This app needs location access to track the driver. Please grant the permission in the app settings.',
+                ),
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Cancel'),
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                  ),
+                  TextButton(
+                    child: const Text('Open Settings'),
+                    onPressed: () {
+                      openAppSettings();
+                      Navigator.of(dialogContext).pop();
+                    },
+                  ),
+                ],
               ),
-              TextButton(
-                child: const Text('Open Settings'),
-                onPressed: () {
-                  openAppSettings();
-                  Navigator.of(dialogContext).pop();
-                },
-              ),
-            ],
-          ),
         );
       }
       return; // Stop further permission requests if permanently denied.
@@ -127,7 +130,11 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  Future<void> _onLoggedIn(String token, int driverId, String driverName) async {
+  Future<void> _onLoggedIn(
+    String token,
+    int driverId,
+    String driverName,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
       prefs.setString('token', token),
@@ -166,7 +173,6 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     if (_isLoadingAuth) {
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -210,14 +216,15 @@ class _MyAppState extends State<MyApp> {
           foregroundColor: Colors.white,
         ),
       ),
-          home: _token == null
-              ? LoginPage(onLoggedIn: _onLoggedIn, serverUrl: _serverUrl)
-              : MainScreen(
-                  token: _token!,
-                  driverId: _driverId!,
-                  driverName: _driverName!,
-                  onLogout: _logout,
-                ),
+          home:
+              _token == null
+                  ? LoginPage(onLoggedIn: _onLoggedIn, serverUrl: _serverUrl)
+                  : MainScreen(
+                    token: _token!,
+                    driverId: _driverId!,
+                    driverName: _driverName!,
+                    onLogout: _logout,
+                  ),
         );
       },
     );

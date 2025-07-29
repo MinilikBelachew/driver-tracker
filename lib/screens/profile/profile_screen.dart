@@ -9,13 +9,10 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Watch the AuthProvider to react to changes in authentication state
-    final authProvider = context.watch<AuthProvider>();
+   
 
     // Get driver information from the AuthProvider
-    final String driverName = authProvider.driverName ?? 'N/A';
-    final String mdtUsername = authProvider.mdtUsername ?? 'N/A';
-    final String driverId = authProvider.driverId ?? 'N/A'; // Assuming driverId is available
-
+   
     return Scaffold(
       appBar: AppBar(
         title: const Text("Driver Profile"),
@@ -48,7 +45,7 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  driverName, // Display actual driver name
+                  "driverName", // Display actual driver name
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -56,7 +53,7 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  mdtUsername, // Display actual MDT username
+                  "mdtUsername", // Display actual MDT username
                   style: TextStyle(
                     fontSize: 16,
                     color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
@@ -69,7 +66,7 @@ class ProfilePage extends StatelessWidget {
           ProfileInfoCard(
             title: "Driver Information",
             items: [
-              ProfileInfoItem(label: "ID", value: driverId), // Display actual driver ID
+              ProfileInfoItem(label: "ID", value: "driverId"), // Display actual driver ID
               const ProfileInfoItem(label: "Phone", value: "+1 (555) 123-4567"), // Dummy data, replace with actual
               const ProfileInfoItem(label: "License", value: "CO-12345678"), // Dummy data, replace with actual
               const ProfileInfoItem(label: "Vehicle", value: "Honda Civic (2023)"), // Dummy data, replace with actual
@@ -95,7 +92,7 @@ class ProfilePage extends StatelessWidget {
             ),
             onPressed: () {
               // Call the logout method from AuthProvider
-              context.read<AuthProvider>().logout();
+              
             },
           ),
         ],
