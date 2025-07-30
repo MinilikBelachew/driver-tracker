@@ -31,7 +31,12 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
   }
 
   Future<void> _addMapObjects() async {
-    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) {
+      print("Passenger detail: Annotation managers not initialized");
+      return;
+    }
+    
+    print("Passenger detail: Adding map objects: ${_markerOptions.length} markers, ${_polylineOptions.length} polylines");
     
     // Clear existing annotations
     await _pointAnnotationManager!.deleteAll();
@@ -44,8 +49,11 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
     
     // Add polylines
     for (final lineOption in _polylineOptions) {
+      print("Passenger detail: Adding polyline with ${lineOption.geometry.coordinates.length} coordinates");
       await _polylineAnnotationManager!.create(lineOption);
     }
+    
+    print("Passenger detail: Map objects added successfully");
   }
 
   Future<void> _moveCameraToRoute(List<Point> points) async {
@@ -77,12 +85,18 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
   Future<void> _fetchRoute() async {
     setState(() { _loading = true; });
     try {
+      print("Passenger detail: Fetching route for ${widget.passenger.name}");
+      
       final driverLoc =
           context.read<DriverLocationProvider>().currentLocation ??
           Point(coordinates: Position(-104.9, 39.7)); // fallback
 
       Point pickup = widget.passenger.pickupLatLng;
       Point dropoff = widget.passenger.dropoffLatLng;
+      
+      print("Passenger detail: Driver location: ${driverLoc.coordinates.lat}, ${driverLoc.coordinates.lng}");
+      print("Passenger detail: Pickup: ${pickup.coordinates.lat}, ${pickup.coordinates.lng}");
+      print("Passenger detail: Dropoff: ${dropoff.coordinates.lat}, ${dropoff.coordinates.lng}");
 
       // 1. Route from driver to pickup
       final route1 = await MapboxService.getRoutePolyline(
@@ -95,6 +109,9 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
       if (route1 == null || route2 == null) {
         throw Exception('Could not calculate route');
       }
+
+      print("Passenger detail: Route1 points: ${route1['polyline'].length}");
+      print("Passenger detail: Route2 points: ${route2['polyline'].length}");
 
       List<PolylineAnnotationOptions> polylineOptions = [];
       int id = 1;
@@ -110,6 +127,35 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
         );
         id++;
       }
+      
+      // Add a test polyline to verify map can display polylines
+      polylineOptions.add(
+        PolylineAnnotationOptions(
+          geometry: LineString(
+            coordinates: [
+              Position(-105.0, 39.7), // West of Denver
+              Position(-104.8, 39.9), // Northeast of Denver
+            ],
+          ),
+          lineColor: Colors.red.value,
+          lineWidth: 15.0, // Make it very thick to be visible
+        ),
+      );
+      
+      // Add another test polyline with different coordinates
+      polylineOptions.add(
+        PolylineAnnotationOptions(
+          geometry: LineString(
+            coordinates: [
+              Position(-104.9, 39.6), // South of Denver
+              Position(-104.9, 39.8), // North of Denver
+              Position(-104.7, 39.8), // Northeast
+            ],
+          ),
+          lineColor: Colors.green.value,
+          lineWidth: 12.0,
+        ),
+      );
 
       // Calculate total distance and duration
       double totalDist = route1['distance'] + route2['distance'];
@@ -137,9 +183,12 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
         ];
         _loading = false;
       });
+      
+      print("Passenger detail: Set state with ${polylineOptions.length} polylines and ${_markerOptions.length} markers");
 
       // Add objects and move camera after setState
       WidgetsBinding.instance.addPostFrameCallback((_) async {
+        print("Passenger detail: Post frame callback - adding map objects");
         await _addMapObjects();
         await _moveCameraToRoute([
           ...route1['polyline'],
@@ -180,13 +229,20 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
                       center: widget.passenger.pickupLatLng,
                       zoom: 11.0,
                     ),
+                    styleUri: MapboxStyles.MAPBOX_STREETS,
                     onMapCreated: (MapboxMap mapboxMap) async {
+                      print("Passenger detail: Map created, initializing...");
                       _mapboxMap = mapboxMap;
                       
                       // Initialize annotation managers
                       _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
                       _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+                      print("Passenger detail: Annotation managers created");
                       
+                      // Wait a bit for the map to be fully ready
+                      await Future.delayed(Duration(milliseconds: 1000));
+                      
+                      print("Passenger detail: Adding map objects after delay");
                       await _addMapObjects();
                       final allPoints = _polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();
                       if (allPoints.isNotEmpty) {

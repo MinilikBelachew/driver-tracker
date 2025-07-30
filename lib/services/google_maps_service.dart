@@ -64,6 +64,11 @@ class MapboxService {
       // Mapbox expects (lng, lat) order for Point
       poly.add(Point(coordinates: Position(lng / 1E5, lat / 1E5)));
     }
+    print("Decoded polyline with ${poly.length} points");
+    if (poly.isNotEmpty) {
+      print("First point: ${poly.first.coordinates.lat}, ${poly.first.coordinates.lng}");
+      print("Last point: ${poly.last.coordinates.lat}, ${poly.last.coordinates.lng}");
+    }
     return poly;
   }
 }

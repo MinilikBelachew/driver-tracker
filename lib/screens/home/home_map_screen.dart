@@ -132,37 +132,35 @@ class _HomeMapPageState extends State<HomeMapPage> {
     List<PointAnnotationOptions> markerOptions = [];
     List<PolylineAnnotationOptions> polylineOptions = [];
     
-    // Add a test polyline to see if the map can display polylines at all
-    if (routeProvider.segments.isEmpty) {
-      print("No segments available, adding test polyline");
-      polylineOptions.add(
-        PolylineAnnotationOptions(
-          geometry: LineString(
-            coordinates: [
-              Position(-104.9, 39.7), // Denver
-              Position(-104.8, 39.8), // Slightly north
-            ],
-          ),
-          lineColor: Colors.red.value,
-          lineWidth: 5.0,
+    // Always add a test polyline to verify the map can display polylines
+    print("Adding test polyline");
+    polylineOptions.add(
+      PolylineAnnotationOptions(
+        geometry: LineString(
+          coordinates: [
+            Position(-105.0, 39.7), // West of Denver
+            Position(-104.8, 39.9), // Northeast of Denver
+          ],
         ),
-      );
-    } else {
-      // Always add a test polyline to verify the map can display polylines
-      print("Adding test polyline alongside ${routeProvider.segments.length} segments");
-      polylineOptions.add(
-        PolylineAnnotationOptions(
-          geometry: LineString(
-            coordinates: [
-              Position(-104.9, 39.7), // Denver
-              Position(-104.8, 39.8), // Slightly north
-            ],
-          ),
-          lineColor: Colors.green.value,
-          lineWidth: 3.0,
+        lineColor: Colors.red.value,
+        lineWidth: 15.0, // Make it very thick to be visible
+      ),
+    );
+    
+    // Add another test polyline with different coordinates
+    polylineOptions.add(
+      PolylineAnnotationOptions(
+        geometry: LineString(
+          coordinates: [
+            Position(-104.9, 39.6), // South of Denver
+            Position(-104.9, 39.8), // North of Denver
+            Position(-104.7, 39.8), // Northeast
+          ],
         ),
-      );
-    }
+        lineColor: Colors.green.value,
+        lineWidth: 12.0,
+      ),
+    );
 
     // Always add driver marker
     markerOptions.add(
@@ -263,6 +261,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
               center: driverLoc ?? Point(coordinates: Position(-104.9, 39.7)),
               zoom: 11.0,
             ),
+            styleUri: MapboxStyles.MAPBOX_STREETS,
             onMapCreated: (MapboxMap mapboxMap) async {
               print("Map created, initializing...");
               _mapboxMap = mapboxMap;
@@ -273,8 +272,9 @@ class _HomeMapPageState extends State<HomeMapPage> {
               print("Annotation managers created");
               
               // Wait a bit for the map to be fully ready
-              await Future.delayed(Duration(milliseconds: 500));
+              await Future.delayed(Duration(milliseconds: 1000));
               
+              print("Adding map objects after delay");
               await _addMapObjects();
               final allPoints = _polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();
               if (allPoints.isNotEmpty) {
