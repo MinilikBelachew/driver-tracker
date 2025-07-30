@@ -12,10 +12,21 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  
+  // Set Mapbox access token programmatically
+  MapboxOptions.setAccessToken("pk.eyJ1IjoibWFtdXNoMTIzMyIsImEiOiJjbWQ5N3doMHYwNWJqMnFzNnl1eGR4djR2In0.VXyhfDyIx_4mClqyZ7FTpg");
+  
+  // Try to load .env file if it exists
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    // .env file doesn't exist, that's okay
+    print("No .env file found, using programmatic token setup");
+  }
   
   
   runApp(
