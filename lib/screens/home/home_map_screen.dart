@@ -34,10 +34,23 @@ class _HomeMapPageState extends State<HomeMapPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeLocationAndRoute();
     });
+    
+    // Listen to route provider changes
+    context.read<RouteProvider>().addListener(() {
+      if (!context.read<RouteProvider>().loading) {
+        print("Route provider updated, refreshing map objects");
+        _updateMapObjects();
+      }
+    });
   }
 
   Future<void> _addMapObjects() async {
-    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) {
+      print("Annotation managers not initialized");
+      return;
+    }
+    
+    print("Adding map objects: ${_markerOptions.length} markers, ${_polylineOptions.length} polylines");
     
     // Clear existing annotations
     await _pointAnnotationManager!.deleteAll();
@@ -50,8 +63,11 @@ class _HomeMapPageState extends State<HomeMapPage> {
     
     // Add polylines
     for (final lineOption in _polylineOptions) {
+      print("Adding polyline with ${lineOption.geometry.coordinates.length} coordinates");
       await _polylineAnnotationManager!.create(lineOption);
     }
+    
+    print("Map objects added successfully");
   }
 
   Future<void> _moveCameraToRoute(List<Point> points) async {
@@ -81,6 +97,9 @@ class _HomeMapPageState extends State<HomeMapPage> {
   }
 
   Future<void> _initializeLocationAndRoute() async {
+    print("Initializing location and route...");
+    print("Passenger list length: ${passengerList.length}");
+    
     await context.read<DriverLocationProvider>().startTracking();
 
     // Wait for driver location to be available
@@ -91,12 +110,14 @@ class _HomeMapPageState extends State<HomeMapPage> {
 
     final driverLocation =
         driverProvider.currentLocation ?? Point(coordinates: Position(-104.9, 39.7));
+    print("Driver location: ${driverLocation.coordinates.lat}, ${driverLocation.coordinates.lng}");
+    
     await context.read<RouteProvider>().buildCompleteRoute(
-      passengerList,
+      passengerList, // This should be imported from passenger.dart
       driverLocation,
     );
 
-    _updateMapObjects();
+    // _updateMapObjects() will be called automatically by the listener
   }
 
   void _updateMapObjects() async {
@@ -105,8 +126,43 @@ class _HomeMapPageState extends State<HomeMapPage> {
         context.read<DriverLocationProvider>().currentLocation ??
         Point(coordinates: Position(-104.9, 39.7));
 
+    print("Updating map objects. Segments count: ${routeProvider.segments.length}");
+    print("Selected segment index: $_selectedSegmentIndex");
+
     List<PointAnnotationOptions> markerOptions = [];
     List<PolylineAnnotationOptions> polylineOptions = [];
+    
+    // Add a test polyline to see if the map can display polylines at all
+    if (routeProvider.segments.isEmpty) {
+      print("No segments available, adding test polyline");
+      polylineOptions.add(
+        PolylineAnnotationOptions(
+          geometry: LineString(
+            coordinates: [
+              Position(-104.9, 39.7), // Denver
+              Position(-104.8, 39.8), // Slightly north
+            ],
+          ),
+          lineColor: Colors.red.value,
+          lineWidth: 5.0,
+        ),
+      );
+    } else {
+      // Always add a test polyline to verify the map can display polylines
+      print("Adding test polyline alongside ${routeProvider.segments.length} segments");
+      polylineOptions.add(
+        PolylineAnnotationOptions(
+          geometry: LineString(
+            coordinates: [
+              Position(-104.9, 39.7), // Denver
+              Position(-104.8, 39.8), // Slightly north
+            ],
+          ),
+          lineColor: Colors.green.value,
+          lineWidth: 3.0,
+        ),
+      );
+    }
 
     // Always add driver marker
     markerOptions.add(
@@ -175,6 +231,8 @@ class _HomeMapPageState extends State<HomeMapPage> {
       _markerOptions = markerOptions;
       _polylineOptions = polylineOptions;
     });
+    
+    print("Created ${markerOptions.length} markers and ${polylineOptions.length} polylines");
 
     // Move camera to fit all points
     final allPoints = polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();
@@ -206,11 +264,16 @@ class _HomeMapPageState extends State<HomeMapPage> {
               zoom: 11.0,
             ),
             onMapCreated: (MapboxMap mapboxMap) async {
+              print("Map created, initializing...");
               _mapboxMap = mapboxMap;
               
               // Initialize annotation managers
               _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
               _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+              print("Annotation managers created");
+              
+              // Wait a bit for the map to be fully ready
+              await Future.delayed(Duration(milliseconds: 500));
               
               await _addMapObjects();
               final allPoints = _polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();

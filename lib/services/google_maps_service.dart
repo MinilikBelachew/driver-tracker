@@ -11,6 +11,9 @@ class MapboxService {
     final url =
         'https://api.mapbox.com/directions/v5/mapbox/driving/${start.coordinates.lng},${start.coordinates.lat};${end.coordinates.lng},${end.coordinates.lat}?geometries=polyline&access_token=$accessToken';
 
+    print("Requesting route from (${start.coordinates.lat}, ${start.coordinates.lng}) to (${end.coordinates.lat}, ${end.coordinates.lng})");
+    print("URL: $url");
+
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
@@ -19,12 +22,18 @@ class MapboxService {
         final polyline = decodePolyline(route['geometry']);
         final distance = route['distance'] * 1.0; // meters
         final duration = route['duration'] * 1.0; // seconds
+        print("Route found: ${polyline.length} points, ${distance}m, ${duration}s");
         return {
           'polyline': polyline,
           'distance': distance,
           'duration': duration,
         };
+      } else {
+        print("No routes found in response");
       }
+    } else {
+      print("API request failed with status: ${response.statusCode}");
+      print("Response body: ${response.body}");
     }
     return null;
   }

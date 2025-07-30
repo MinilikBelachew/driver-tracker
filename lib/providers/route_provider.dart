@@ -18,6 +18,9 @@ class RouteProvider extends ChangeNotifier {
     totalDistance = 0;
     totalDuration = 0;
     
+    print("Building route for ${passengers.length} passengers");
+    print("Driver location: ${driverLocation.coordinates.lat}, ${driverLocation.coordinates.lng}");
+    
     List<Passenger> sorted = [...passengers];
     sorted.sort((a, b) => a.earliestPickup.compareTo(b.earliestPickup));
     
@@ -28,6 +31,7 @@ class RouteProvider extends ChangeNotifier {
     );
     
     if (driverToFirstPickup != null) {
+      print("Driver to first pickup route found: ${driverToFirstPickup['polyline'].length} points");
       segments.add(RouteSegment(
         start: driverLocation,
         end: sorted[0].pickupLatLng,
@@ -43,6 +47,8 @@ class RouteProvider extends ChangeNotifier {
       
       totalDistance += driverToFirstPickup['distance'];
       totalDuration += driverToFirstPickup['duration'];
+    } else {
+      print("Failed to get driver to first pickup route");
     }
     
     // Add pickup to dropoff and dropoff to next pickup segments
@@ -99,6 +105,8 @@ class RouteProvider extends ChangeNotifier {
     }
     
     loading = false;
+    print("Route building complete. Total segments: ${segments.length}");
+    print("Total distance: ${totalDistance}m, Total duration: ${totalDuration}s");
     notifyListeners();
   }
 }
