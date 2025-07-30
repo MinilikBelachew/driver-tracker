@@ -135,7 +135,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
         );
         polylineOptions.add(
           PolylineAnnotationOptions(
-            geometry: LineString(coordinates: segment.polylinePoints.map((p) => p.coordinates).toList()),
+            geometry: LineString(coordinates: segment.polylinePoints.map<Position>((p) => p.coordinates).toList()),
             lineColor: segment.color.value,
             lineWidth: 5.0,
           ),

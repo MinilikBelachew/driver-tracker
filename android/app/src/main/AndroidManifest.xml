@@ -17,6 +17,9 @@ package="com.example.driver">
         android:label="driver"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+    <meta-data
+    android:name="com.mapbox.token"
+    android:value="pk.eyJ1IjoibWFtdXNoMTIzMyIsImEiOiJjbWQ5N3doMHYwNWJqMnFzNnl1eGR4djR2In0.VXyhfDyIx_4mClqyZ7FTpg" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

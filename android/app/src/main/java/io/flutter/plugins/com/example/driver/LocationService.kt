@@ -149,7 +149,7 @@ class LocationService : Service() {
             // <-- MODIFIED: This is the core logic change
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
-                    val speedKmh = location.speed * 3.6 // Convert m/s to km/h
+                    val speedKmh = (location.speed * 3.6).toFloat() // Convert m/s to km/h
                     Log.d("LocationService", "New location: ${location.latitude}, ${location.longitude}, Speed: ${speedKmh.format(1)} km/h")
                     
                     // Send all data (including speed) to the server and UI

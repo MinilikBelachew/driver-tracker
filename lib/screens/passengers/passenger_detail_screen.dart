@@ -99,13 +99,13 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
       List<PolylineAnnotationOptions> polylineOptions = [];
       int id = 1;
       for (var route in [route1, route2]) {
-        polylineOptions.add(
-          PolylineAnnotationOptions(
-            geometry: LineString(coordinates: route['polyline'].map((p) => p.coordinates).toList()),
-            lineColor: id == 1 ? 0xFF2196F3 : 0xFFFF9800,
-            lineWidth: 5.0,
-          ),
-        );
+polylineOptions.add(
+  PolylineAnnotationOptions(
+    geometry: LineString(coordinates: route['polyline'].map<Position>((p) => p.coordinates).toList()),
+    lineColor: id == 1 ? 0xFF2196F3 : 0xFFFF9800,
+    lineWidth: 5.0,
+  ),
+);
         id++;
       }
 
