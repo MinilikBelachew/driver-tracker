@@ -1,9 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:provider/provider.dart';
 
 // import 'package:shimmer/shimmer.dart'; //
@@ -23,9 +21,11 @@ class HomeMapPage extends StatefulWidget {
 }
 
 class _HomeMapPageState extends State<HomeMapPage> {
-  GoogleMapController? _mapController;
-  Set<Marker> _markers = {};
-  Set<Polyline> _polylines = {};
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _pointAnnotationManager;
+  PolylineAnnotationManager? _polylineAnnotationManager;
+  List<PointAnnotationOptions> _markerOptions = [];
+  List<PolylineAnnotationOptions> _polylineOptions = [];
   int _selectedSegmentIndex = -1; // -1 means show all routes
 
   @override
@@ -34,6 +34,50 @@ class _HomeMapPageState extends State<HomeMapPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeLocationAndRoute();
     });
+  }
+
+  Future<void> _addMapObjects() async {
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
+    
+    // Clear existing annotations
+    await _pointAnnotationManager!.deleteAll();
+    await _polylineAnnotationManager!.deleteAll();
+    
+    // Add markers
+    for (final markerOption in _markerOptions) {
+      await _pointAnnotationManager!.create(markerOption);
+    }
+    
+    // Add polylines
+    for (final lineOption in _polylineOptions) {
+      await _polylineAnnotationManager!.create(lineOption);
+    }
+  }
+
+  Future<void> _moveCameraToRoute(List<Point> points) async {
+    if (_mapboxMap == null || points.isEmpty) return;
+    
+    double minLat = points.first.coordinates.lat.toDouble();
+    double maxLat = points.first.coordinates.lat.toDouble();
+    double minLng = points.first.coordinates.lng.toDouble();
+    double maxLng = points.first.coordinates.lng.toDouble();
+    
+    for (final p in points) {
+      final lat = p.coordinates.lat.toDouble();
+      final lng = p.coordinates.lng.toDouble();
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+    
+    await _mapboxMap!.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position((minLng + maxLng) / 2, (minLat + maxLat) / 2)),
+        zoom: 11.0,
+      ),
+      MapAnimationOptions(duration: 1000),
+    );
   }
 
   Future<void> _initializeLocationAndRoute() async {
@@ -46,7 +90,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
     }
 
     final driverLocation =
-        driverProvider.currentLocation ?? LatLng(39.7, -104.9);
+        driverProvider.currentLocation ?? Point(coordinates: Position(-104.9, 39.7));
     await context.read<RouteProvider>().buildCompleteRoute(
       passengerList,
       driverLocation,
@@ -55,133 +99,85 @@ class _HomeMapPageState extends State<HomeMapPage> {
     _updateMapObjects();
   }
 
-  void _updateMapObjects() {
+  void _updateMapObjects() async {
     final routeProvider = context.read<RouteProvider>();
     final driverLoc =
         context.read<DriverLocationProvider>().currentLocation ??
-        LatLng(39.7, -104.9);
+        Point(coordinates: Position(-104.9, 39.7));
 
-    Set<Marker> markers = {};
-    Set<Polyline> polylines = {};
+    List<PointAnnotationOptions> markerOptions = [];
+    List<PolylineAnnotationOptions> polylineOptions = [];
 
     // Always add driver marker
-    markers.add(
-      Marker(
-        markerId: const MarkerId('driver'),
-        position: driverLoc,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow: const InfoWindow(title: 'Driver Location'),
+    markerOptions.add(
+      PointAnnotationOptions(
+        geometry: driverLoc,
+        iconImage: "marker-15",
       ),
     );
 
-    // If showing all segments, build all markers and polylines
     if (_selectedSegmentIndex == -1) {
-      // Add all segment markers and polylines
       for (int i = 0; i < routeProvider.segments.length; i++) {
         final segment = routeProvider.segments[i];
-
-        // No need to add start marker for first segment, as it's the driver
         if (i > 0 || segment.startLabel != "Driver") {
-          markers.add(
-            Marker(
-              markerId: MarkerId('marker_start_$i'),
-              position: segment.start,
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                segment.startLabel.contains("Pickup")
-                    ? BitmapDescriptor.hueAzure
-                    : BitmapDescriptor.hueOrange,
-              ),
-              infoWindow: InfoWindow(
-                title: segment.startLabel,
-                snippet: segment.startAddress,
-              ),
+          markerOptions.add(
+            PointAnnotationOptions(
+              geometry: segment.start,
+              iconImage: "marker-15",
             ),
           );
         }
-
-        // Always add end marker
-        markers.add(
-          Marker(
-            markerId: MarkerId('marker_end_$i'),
-            position: segment.end,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              segment.endLabel.contains("Pickup")
-                  ? BitmapDescriptor.hueAzure
-                  : BitmapDescriptor.hueOrange,
-            ),
-            infoWindow: InfoWindow(
-              title: segment.endLabel,
-              snippet: segment.endAddress,
-            ),
+        markerOptions.add(
+          PointAnnotationOptions(
+            geometry: segment.end,
+            iconImage: "marker-15",
           ),
         );
-
-        // Add polyline
-        polylines.add(
-          Polyline(
-            polylineId: PolylineId('polyline_$i'),
-            points: segment.polylinePoints,
-            color: segment.color,
-            width: 5,
+        polylineOptions.add(
+          PolylineAnnotationOptions(
+            geometry: LineString(coordinates: segment.polylinePoints.map((p) => p.coordinates).toList()),
+            lineColor: segment.color.value,
+            lineWidth: 5.0,
           ),
         );
       }
     } else {
-      // Show only selected segment
       if (_selectedSegmentIndex >= 0 &&
           _selectedSegmentIndex < routeProvider.segments.length) {
         final segment = routeProvider.segments[_selectedSegmentIndex];
-
-        // Add start marker
-        markers.add(
-          Marker(
-            markerId: MarkerId('marker_start'),
-            position: segment.start,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              segment.startLabel.contains("Pickup")
-                  ? BitmapDescriptor.hueAzure
-                  : BitmapDescriptor.hueOrange,
-            ),
-            infoWindow: InfoWindow(
-              title: segment.startLabel,
-              snippet: segment.startAddress,
-            ),
+        markerOptions.add(
+          PointAnnotationOptions(
+            geometry: segment.start,
+            iconImage: "marker-15",
           ),
         );
-
-        // Add end marker
-        markers.add(
-          Marker(
-            markerId: MarkerId('marker_end'),
-            position: segment.end,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              segment.endLabel.contains("Pickup")
-                  ? BitmapDescriptor.hueAzure
-                  : BitmapDescriptor.hueOrange,
-            ),
-            infoWindow: InfoWindow(
-              title: segment.endLabel,
-              snippet: segment.endAddress,
-            ),
+        markerOptions.add(
+          PointAnnotationOptions(
+            geometry: segment.end,
+            iconImage: "marker-15",
           ),
         );
-
-        // Add polyline
-        polylines.add(
-          Polyline(
-            polylineId: PolylineId('polyline'),
-            points: segment.polylinePoints,
-            color: segment.color,
-            width: 5,
+        polylineOptions.add(
+          PolylineAnnotationOptions(
+            geometry: LineString(coordinates: segment.polylinePoints.map((p) => p.coordinates).toList()),
+            lineColor: segment.color.value,
+            lineWidth: 5.0,
           ),
         );
       }
     }
 
     setState(() {
-      _markers = markers;
-      _polylines = polylines;
+      _markerOptions = markerOptions;
+      _polylineOptions = polylineOptions;
     });
+
+    // Move camera to fit all points
+    final allPoints = polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();
+    if (allPoints.isNotEmpty) {
+      await _moveCameraToRoute(allPoints);
+    }
+    await _addMapObjects();
   }
 
   @override
@@ -199,188 +195,25 @@ class _HomeMapPageState extends State<HomeMapPage> {
     return SafeArea(
       child: Stack(
         children: [
-          GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: driverLoc ?? LatLng(39.7, -104.9),
-              zoom: 11,
+          MapWidget(
+            key: ValueKey('mapbox_map'),
+            cameraOptions: CameraOptions(
+              center: driverLoc ?? Point(coordinates: Position(-104.9, 39.7)),
+              zoom: 11.0,
             ),
-            markers: _markers,
-            polylines: _polylines,
-            onMapCreated: (controller) {
-              _mapController = controller;
-
-              // Set map style based on theme
-              if (isDark) {
-                controller.setMapStyle('''
-                  [
-                    {
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#242f3e"
-                        }
-                      ]
-                    },
-                    {
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#746855"
-                        }
-                      ]
-                    },
-                    {
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#242f3e"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "administrative.locality",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#d59563"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#d59563"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi.park",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#263c3f"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "poi.park",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#6b9a76"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#38414e"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road",
-                      "elementType": "geometry.stroke",
-                      "stylers": [
-                        {
-                          "color": "#212a37"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#9ca5b3"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#746855"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "geometry.stroke",
-                      "stylers": [
-                        {
-                          "color": "#1f2835"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "road.highway",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#f3d19c"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "transit",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#2f3948"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "transit.station",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#d59563"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "water",
-                      "elementType": "geometry",
-                      "stylers": [
-                        {
-                          "color": "#17263c"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "water",
-                      "elementType": "labels.text.fill",
-                      "stylers": [
-                        {
-                          "color": "#515c6d"
-                        }
-                      ]
-                    },
-                    {
-                      "featureType": "water",
-                      "elementType": "labels.text.stroke",
-                      "stylers": [
-                        {
-                          "color": "#17263c"
-                        }
-                      ]
-                    }
-                  ]
-                ''');
+            onMapCreated: (MapboxMap mapboxMap) async {
+              _mapboxMap = mapboxMap;
+              
+              // Initialize annotation managers
+              _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+              _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+              
+              await _addMapObjects();
+              final allPoints = _polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();
+              if (allPoints.isNotEmpty) {
+                await _moveCameraToRoute(allPoints);
               }
             },
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            mapToolbarEnabled: false,
-            zoomControlsEnabled: false,
-            compassEnabled: true,
           ),
 
           // Upper info card
@@ -523,16 +356,6 @@ class _HomeMapPageState extends State<HomeMapPage> {
                                 setState(() {
                                   _selectedSegmentIndex = segmentIndex;
                                   _updateMapObjects();
-
-                                  // Fit map bounds to selected segment
-                                  if (_mapController != null) {
-                                    LatLngBounds bounds = _calculateBounds(
-                                      segment.polylinePoints,
-                                    );
-                                    _mapController!.animateCamera(
-                                      CameraUpdate.newLatLngBounds(bounds, 100),
-                                    );
-                                  }
                                 });
                               },
                               child: RouteSegmentCard(
@@ -555,25 +378,6 @@ class _HomeMapPageState extends State<HomeMapPage> {
           ),
         ],
       ),
-    );
-  }
-
-  LatLngBounds _calculateBounds(List<LatLng> points) {
-    double minLat = points.first.latitude;
-    double maxLat = points.first.latitude;
-    double minLng = points.first.longitude;
-    double maxLng = points.first.longitude;
-
-    for (LatLng point in points) {
-      if (point.latitude < minLat) minLat = point.latitude;
-      if (point.latitude > maxLat) maxLat = point.latitude;
-      if (point.longitude < minLng) minLng = point.longitude;
-      if (point.longitude > maxLng) maxLng = point.longitude;
-    }
-
-    return LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
     );
   }
 }

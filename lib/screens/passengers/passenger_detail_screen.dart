@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../models/passenger.dart';
 import '../../providers/driver_location_provider.dart';
@@ -15,9 +15,11 @@ class PassengerDetailPage extends StatefulWidget {
 }
 
 class _PassengerDetailPageState extends State<PassengerDetailPage> {
-  GoogleMapController? _controller;
-  Set<Polyline> _polylines = {};
-  Set<Marker> _markers = {};
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _pointAnnotationManager;
+  PolylineAnnotationManager? _polylineAnnotationManager;
+  List<PointAnnotationOptions> _markerOptions = [];
+  List<PolylineAnnotationOptions> _polylineOptions = [];
   String _distance = '';
   String _duration = '';
   bool _loading = true;
@@ -28,64 +30,80 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
     _fetchRoute();
   }
 
-  LatLngBounds _boundsFromLatLngList(List<LatLng> list) {
-    double? x0, x1, y0, y1;
-    for (LatLng latLng in list) {
-      if (x0 == null) {
-        x0 = x1 = latLng.latitude;
-        y0 = y1 = latLng.longitude;
-      } else {
-        if (latLng.latitude > x1!) x1 = latLng.latitude;
-        if (latLng.latitude < x0) x0 = latLng.latitude;
-        if (latLng.longitude > y1!) y1 = latLng.longitude;
-        if (latLng.longitude < y0!) y0 = latLng.longitude;
-      }
+  Future<void> _addMapObjects() async {
+    if (_pointAnnotationManager == null || _polylineAnnotationManager == null) return;
+    
+    // Clear existing annotations
+    await _pointAnnotationManager!.deleteAll();
+    await _polylineAnnotationManager!.deleteAll();
+    
+    // Add markers
+    for (final markerOption in _markerOptions) {
+      await _pointAnnotationManager!.create(markerOption);
     }
-    return LatLngBounds(
-      northeast: LatLng(x1!, y1!),
-      southwest: LatLng(x0!, y0!),
-    );
+    
+    // Add polylines
+    for (final lineOption in _polylineOptions) {
+      await _polylineAnnotationManager!.create(lineOption);
+    }
   }
 
-  void _moveCameraToRoute(List<LatLng> points) {
-    if (_controller == null || points.isEmpty) return;
-
-    LatLngBounds bounds = _boundsFromLatLngList(points);
-    _controller!.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 50), // 50 pixels padding
+  Future<void> _moveCameraToRoute(List<Point> points) async {
+    if (_mapboxMap == null || points.isEmpty) return;
+    
+    double minLat = points.first.coordinates.lat.toDouble();
+    double maxLat = points.first.coordinates.lat.toDouble();
+    double minLng = points.first.coordinates.lng.toDouble();
+    double maxLng = points.first.coordinates.lng.toDouble();
+    
+    for (final p in points) {
+      final lat = p.coordinates.lat.toDouble();
+      final lng = p.coordinates.lng.toDouble();
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+    
+    await _mapboxMap!.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position((minLng + maxLng) / 2, (minLat + maxLat) / 2)),
+        zoom: 11.0,
+      ),
+      MapAnimationOptions(duration: 1000),
     );
   }
 
   Future<void> _fetchRoute() async {
+    setState(() { _loading = true; });
     try {
       final driverLoc =
           context.read<DriverLocationProvider>().currentLocation ??
-          LatLng(39.7, -104.9); // fallback
+          Point(coordinates: Position(-104.9, 39.7)); // fallback
 
-      LatLng pickup = widget.passenger.pickupLatLng;
-      LatLng dropoff = widget.passenger.dropoffLatLng;
+      Point pickup = widget.passenger.pickupLatLng;
+      Point dropoff = widget.passenger.dropoffLatLng;
 
       // 1. Route from driver to pickup
-      final route1 = await GoogleMapsService.getRoutePolyline(
+      final route1 = await MapboxService.getRoutePolyline(
         driverLoc,
         pickup,
       );
       // 2. Route from pickup to dropoff
-      final route2 = await GoogleMapsService.getRoutePolyline(pickup, dropoff);
+      final route2 = await MapboxService.getRoutePolyline(pickup, dropoff);
 
       if (route1 == null || route2 == null) {
         throw Exception('Could not calculate route');
       }
 
-      Set<Polyline> plines = {};
+      List<PolylineAnnotationOptions> polylineOptions = [];
       int id = 1;
       for (var route in [route1, route2]) {
-        plines.add(
-          Polyline(
-            polylineId: PolylineId('route$id'),
-            points: route['polyline'],
-            color: id == 1 ? Colors.blue : Colors.orange,
-            width: 5,
+        polylineOptions.add(
+          PolylineAnnotationOptions(
+            geometry: LineString(coordinates: route['polyline'].map((p) => p.coordinates).toList()),
+            lineColor: id == 1 ? 0xFF2196F3 : 0xFFFF9800,
+            lineWidth: 5.0,
           ),
         );
         id++;
@@ -98,46 +116,34 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
       String dur = "${(totalDur / 60).toStringAsFixed(0)} min";
 
       setState(() {
-        _polylines = plines;
-        _loading = false;
+        _polylineOptions = polylineOptions;
         _distance = dist;
         _duration = dur;
-        _markers = {
-          Marker(
-            markerId: const MarkerId('driver'),
-            position: driverLoc,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
-            ),
-            infoWindow: const InfoWindow(title: 'Driver'),
+        _markerOptions = [
+          PointAnnotationOptions(
+            geometry: driverLoc,
+            iconImage: "marker-15", // Default Mapbox marker
           ),
-          Marker(
-            markerId: const MarkerId('pickup'),
-            position: pickup,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueBlue,
-            ),
-            infoWindow: InfoWindow(
-              title: 'Pickup',
-              snippet: widget.passenger.pickupAddress,
-            ),
+          PointAnnotationOptions(
+            geometry: pickup,
+            iconImage: "marker-15",
           ),
-          Marker(
-            markerId: const MarkerId('dropoff'),
-            position: dropoff,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueRed,
-            ),
-            infoWindow: InfoWindow(
-              title: 'Drop-off',
-              snippet: widget.passenger.dropoffAddress,
-            ),
+          PointAnnotationOptions(
+            geometry: dropoff,
+            iconImage: "marker-15",
           ),
-        };
+        ];
+        _loading = false;
       });
 
-      // Move camera to show entire route
-      _moveCameraToRoute([...route1['polyline'], ...route2['polyline']]);
+      // Add objects and move camera after setState
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _addMapObjects();
+        await _moveCameraToRoute([
+          ...route1['polyline'],
+          ...route2['polyline'],
+        ]);
+      });
     } catch (e) {
       setState(() {
         _loading = false;
@@ -161,105 +167,106 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
           ),
         ],
       ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                children: [
-                  Expanded(
-                    child: GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: widget.passenger.pickupLatLng,
-                        zoom: 11,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Expanded(
+                  child: MapWidget(
+                    key: ValueKey('mapbox_map'),
+                    cameraOptions: CameraOptions(
+                      center: widget.passenger.pickupLatLng,
+                      zoom: 11.0,
+                    ),
+                    onMapCreated: (MapboxMap mapboxMap) async {
+                      _mapboxMap = mapboxMap;
+                      
+                      // Initialize annotation managers
+                      _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+                      _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+                      
+                      await _addMapObjects();
+                      final allPoints = _polylineOptions.expand((l) => l.geometry.coordinates.map((c) => Point(coordinates: c))).toList();
+                      if (allPoints.isNotEmpty) {
+                        await _moveCameraToRoute(allPoints);
+                      }
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, -3),
                       ),
-                      markers: _markers,
-                      polylines: _polylines,
-                      onMapCreated: (controller) {
-                        _controller = controller;
-                        // Show driver info window by default
-                        controller.showMarkerInfoWindow(
-                          const MarkerId('driver'),
-                        );
-                      },
-                      myLocationEnabled: true,
-                      zoomControlsEnabled: false,
-                    ),
+                    ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, -3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Ride Information",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Theme.of(context).primaryColor,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Ride Information",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Theme.of(context).primaryColor,
+                      ),
+                      const SizedBox(height: 16),
+                      LocationInfoItem(
+                        icon: Icons.location_on,
+                        color: Colors.green,
+                        title: "Pickup Location",
+                        subtitle: widget.passenger.pickupAddress,
+                        time: widget.passenger.earliestPickup +
+                            " - " +
+                            widget.passenger.latestPickup,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 24),
+                        child: Container(
+                          width: 2,
+                          height: 24,
+                          color: Colors.grey.withOpacity(0.3),
+                        ),
+                      ),
+                      LocationInfoItem(
+                        icon: Icons.flag,
+                        color: Colors.red,
+                        title: "Dropoff Location",
+                        subtitle: widget.passenger.dropoffAddress,
+                        time: "",
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          RouteInfoCard(
+                            icon: Icons.straighten,
+                            title: "Distance",
+                            value: _distance,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        LocationInfoItem(
-                          icon: Icons.location_on,
-                          color: Colors.green,
-                          title: "Pickup Location",
-                          subtitle: widget.passenger.pickupAddress,
-                          time:
-                              widget.passenger.earliestPickup +
-                              " - " +
-                              widget.passenger.latestPickup,
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(left: 24),
-                          child: Container(
-                            width: 2,
-                            height: 24,
-                            color: Colors.grey.withOpacity(0.3),
+                          RouteInfoCard(
+                            icon: Icons.timer,
+                            title: "Duration",
+                            value: _duration,
                           ),
-                        ),
-                        LocationInfoItem(
-                          icon: Icons.flag,
-                          color: Colors.red,
-                          title: "Dropoff Location",
-                          subtitle: widget.passenger.dropoffAddress,
-                          time: "",
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            RouteInfoCard(
-                              icon: Icons.straighten,
-                              title: "Distance",
-                              value: _distance,
-                            ),
-                            RouteInfoCard(
-                              icon: Icons.timer,
-                              title: "Duration",
-                              value: _duration,
-                            ),
-                            RouteInfoCard(
-                              icon: Icons.calendar_today,
-                              title: "Pickup Window",
-                              value: widget.passenger.earliestPickup,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          RouteInfoCard(
+                            icon: Icons.calendar_today,
+                            title: "Pickup Window",
+                            value: widget.passenger.earliestPickup,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
     );
   }
 }

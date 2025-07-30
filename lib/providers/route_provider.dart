@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../models/route_segment.dart';
 import '../models/passenger.dart';
 import '../services/google_maps_service.dart';
@@ -10,7 +10,7 @@ class RouteProvider extends ChangeNotifier {
   double totalDistance = 0;
   double totalDuration = 0;
   
-  Future<void> buildCompleteRoute(List<Passenger> passengers, LatLng driverLocation) async {
+  Future<void> buildCompleteRoute(List<Passenger> passengers, Point driverLocation) async {
     loading = true;
     notifyListeners();
     
@@ -22,7 +22,7 @@ class RouteProvider extends ChangeNotifier {
     sorted.sort((a, b) => a.earliestPickup.compareTo(b.earliestPickup));
     
     // Driver to first pickup
-    final driverToFirstPickup = await GoogleMapsService.getRoutePolyline(
+    final driverToFirstPickup = await MapboxService.getRoutePolyline(
       driverLocation, 
       sorted[0].pickupLatLng,
     );
@@ -34,7 +34,7 @@ class RouteProvider extends ChangeNotifier {
         startAddress: "Current Location",
         endAddress: sorted[0].pickupAddress,
         startLabel: "Driver",
-        endLabel: "Pickup: ${sorted[0].name}",
+        endLabel: "Pickup:  {sorted[0].name}",
         polylinePoints: driverToFirstPickup['polyline'],
         distance: driverToFirstPickup['distance'],
         duration: driverToFirstPickup['duration'],
@@ -48,7 +48,7 @@ class RouteProvider extends ChangeNotifier {
     // Add pickup to dropoff and dropoff to next pickup segments
     for (int i = 0; i < sorted.length; i++) {
       // Pickup to dropoff
-      final pickupToDropoff = await GoogleMapsService.getRoutePolyline(
+      final pickupToDropoff = await MapboxService.getRoutePolyline(
         sorted[i].pickupLatLng,
         sorted[i].dropoffLatLng,
       );
@@ -59,8 +59,8 @@ class RouteProvider extends ChangeNotifier {
           end: sorted[i].dropoffLatLng,
           startAddress: sorted[i].pickupAddress,
           endAddress: sorted[i].dropoffAddress,
-          startLabel: "Pickup: ${sorted[i].name}",
-          endLabel: "Dropoff: ${sorted[i].name}",
+          startLabel: "Pickup:  {sorted[i].name}",
+          endLabel: "Dropoff:  {sorted[i].name}",
           polylinePoints: pickupToDropoff['polyline'],
           distance: pickupToDropoff['distance'],
           duration: pickupToDropoff['duration'],
@@ -73,7 +73,7 @@ class RouteProvider extends ChangeNotifier {
       
       // If there's a next passenger, add dropoff to next pickup segment
       if (i < sorted.length - 1) {
-        final dropoffToNextPickup = await GoogleMapsService.getRoutePolyline(
+        final dropoffToNextPickup = await MapboxService.getRoutePolyline(
           sorted[i].dropoffLatLng,
           sorted[i + 1].pickupLatLng,
         );
@@ -84,8 +84,8 @@ class RouteProvider extends ChangeNotifier {
             end: sorted[i + 1].pickupLatLng,
             startAddress: sorted[i].dropoffAddress,
             endAddress: sorted[i + 1].pickupAddress,
-            startLabel: "Dropoff: ${sorted[i].name}",
-            endLabel: "Pickup: ${sorted[i + 1].name}",
+            startLabel: "Dropoff:  {sorted[i].name}",
+            endLabel: "Pickup:  {sorted[i + 1].name}",
             polylinePoints: dropoffToNextPickup['polyline'],
             distance: dropoffToNextPickup['distance'],
             duration: dropoffToNextPickup['duration'],

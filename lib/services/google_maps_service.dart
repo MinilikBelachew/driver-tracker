@@ -1,23 +1,24 @@
 import 'dart:convert';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../config/app_config.dart';
 
-class GoogleMapsService {
+class MapboxService {
   static Future<Map<String, dynamic>?> getRoutePolyline(
-      LatLng start, LatLng end) async {
+      Point start, Point end) async {
+    // Mapbox Directions API endpoint
+    final accessToken = AppConfig.mapboxAccessToken; // <-- Add this to your config
     final url =
-        "https://maps.googleapis.com/maps/api/directions/json?origin=${start.latitude},${start.longitude}&destination=${end.latitude},${end.longitude}&key=${AppConfig.googleMapsApiKey}&mode=driving";
-    
+        'https://api.mapbox.com/directions/v5/mapbox/driving/${start.coordinates.lng},${start.coordinates.lat};${end.coordinates.lng},${end.coordinates.lat}?geometries=polyline&access_token=$accessToken';
+
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      if (data['routes'].isNotEmpty) {
-        final route = data['routes'][0]['legs'][0];
-        
-        final polyline = decodePolyline(data['routes'][0]['overview_polyline']['points']);
-        final distance = route['distance']['value'] * 1.0;
-        final duration = route['duration']['value'] * 1.0;
+      if (data['routes'] != null && data['routes'].isNotEmpty) {
+        final route = data['routes'][0];
+        final polyline = decodePolyline(route['geometry']);
+        final distance = route['distance'] * 1.0; // meters
+        final duration = route['duration'] * 1.0; // seconds
         return {
           'polyline': polyline,
           'distance': distance,
@@ -28,8 +29,9 @@ class GoogleMapsService {
     return null;
   }
 
-  static List<LatLng> decodePolyline(String encoded) {
-    List<LatLng> poly = [];
+  // Decodes a Mapbox polyline string into a list of Points
+  static List<Point> decodePolyline(String encoded) {
+    List<Point> poly = [];
     int index = 0, len = encoded.length;
     int lat = 0, lng = 0;
     while (index < len) {
@@ -50,7 +52,8 @@ class GoogleMapsService {
       } while (b >= 0x20);
       int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
       lng += dlng;
-      poly.add(LatLng(lat / 1E5, lng / 1E5));
+      // Mapbox expects (lng, lat) order for Point
+      poly.add(Point(coordinates: Position(lng / 1E5, lat / 1E5)));
     }
     return poly;
   }

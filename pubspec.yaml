@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: 
   provider: 
+  mapbox_maps_flutter:
   shared_preferences: 
   shimmer: 
   flutter_polyline_points: 
@@ -76,8 +77,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
+  assets:
+    - .env
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

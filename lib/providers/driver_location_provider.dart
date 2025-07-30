@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:location/location.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 class DriverLocationProvider extends ChangeNotifier {
-  LatLng? currentLocation;
+  Point? currentLocation;
   bool tracking = false;
   StreamSubscription<LocationData>? _locationSub;
 
@@ -21,7 +22,7 @@ class DriverLocationProvider extends ChangeNotifier {
     if (permissionGranted == PermissionStatus.granted) {
       tracking = true;
       _locationSub = location.onLocationChanged.listen((loc) {
-        currentLocation = LatLng(loc.latitude ?? 39.7, loc.longitude ?? -104.9);
+        currentLocation = Point(coordinates: Position(loc.longitude ?? -104.9, loc.latitude ?? 39.7));
         notifyListeners();
       });
     }
