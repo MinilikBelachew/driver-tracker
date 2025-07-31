@@ -27,6 +27,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
   List<PointAnnotationOptions> _markerOptions = [];
   List<PolylineAnnotationOptions> _polylineOptions = [];
   int _selectedSegmentIndex = -1; // -1 means show all routes
+  Map<Point, Map<String, String>> _markerInfo = {}; // Store marker info for popups
 
   @override
   void initState() {
@@ -131,44 +132,20 @@ class _HomeMapPageState extends State<HomeMapPage> {
 
     List<PointAnnotationOptions> markerOptions = [];
     List<PolylineAnnotationOptions> polylineOptions = [];
+    _markerInfo.clear(); // Clear previous marker info
     
-    // Always add a test polyline to verify the map can display polylines
-    print("Adding test polyline");
-    polylineOptions.add(
-      PolylineAnnotationOptions(
-        geometry: LineString(
-          coordinates: [
-            Position(-105.0, 39.7), // West of Denver
-            Position(-104.8, 39.9), // Northeast of Denver
-          ],
-        ),
-        lineColor: Colors.red.value,
-        lineWidth: 15.0, // Make it very thick to be visible
-      ),
-    );
-    
-    // Add another test polyline with different coordinates
-    polylineOptions.add(
-      PolylineAnnotationOptions(
-        geometry: LineString(
-          coordinates: [
-            Position(-104.9, 39.6), // South of Denver
-            Position(-104.9, 39.8), // North of Denver
-            Position(-104.7, 39.8), // Northeast
-          ],
-        ),
-        lineColor: Colors.green.value,
-        lineWidth: 12.0,
-      ),
-    );
-
-    // Always add driver marker
+    // Always add driver marker (blue)
     markerOptions.add(
       PointAnnotationOptions(
         geometry: driverLoc,
         iconImage: "marker-15",
+        iconColor: 0xFF1976D2, // Blue
       ),
     );
+    _markerInfo[driverLoc] = {
+      'label': 'Driver',
+      'address': 'Current Location',
+    };
 
     if (_selectedSegmentIndex == -1) {
       for (int i = 0; i < routeProvider.segments.length; i++) {
@@ -177,16 +154,26 @@ class _HomeMapPageState extends State<HomeMapPage> {
           markerOptions.add(
             PointAnnotationOptions(
               geometry: segment.start,
-              iconImage: "marker-15",
+              iconImage: "bus-15", // Pickup marker (green)
+              iconColor: 0xFF43A047, // Green
             ),
           );
+          _markerInfo[segment.start] = {
+            'label': segment.startLabel,
+            'address': segment.startAddress,
+          };
         }
         markerOptions.add(
           PointAnnotationOptions(
             geometry: segment.end,
-            iconImage: "marker-15",
+            iconImage: "embassy-15", // Dropoff marker (red)
+            iconColor: 0xFFE53935, // Red
           ),
         );
+        _markerInfo[segment.end] = {
+          'label': segment.endLabel,
+          'address': segment.endAddress,
+        };
         polylineOptions.add(
           PolylineAnnotationOptions(
             geometry: LineString(
@@ -204,15 +191,25 @@ class _HomeMapPageState extends State<HomeMapPage> {
         markerOptions.add(
           PointAnnotationOptions(
             geometry: segment.start,
-            iconImage: "marker-15",
+            iconImage: "bus-15", // Pickup marker (green)
+            iconColor: 0xFF43A047, // Green
           ),
         );
+        _markerInfo[segment.start] = {
+          'label': segment.startLabel,
+          'address': segment.startAddress,
+        };
         markerOptions.add(
           PointAnnotationOptions(
             geometry: segment.end,
-            iconImage: "marker-15",
+            iconImage: "embassy-15", // Dropoff marker (red)
+            iconColor: 0xFFE53935, // Red
           ),
         );
+        _markerInfo[segment.end] = {
+          'label': segment.endLabel,
+          'address': segment.endAddress,
+        };
         polylineOptions.add(
           PolylineAnnotationOptions(
             geometry: LineString(
@@ -246,6 +243,26 @@ class _HomeMapPageState extends State<HomeMapPage> {
     super.dispose();
   }
 
+  void _showMarkerInfoDialog(String label, String address) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(label),
+          content: Text(address),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final routeProvider = context.watch<RouteProvider>();
@@ -270,6 +287,16 @@ class _HomeMapPageState extends State<HomeMapPage> {
               _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
               _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
               print("Annotation managers created");
+              
+              // Add tap listener for markers
+              // TODO: Fix annotation listener - Mapbox API might have changed
+              // _pointAnnotationManager!.addOnPointAnnotationClickListener((annotation) {
+              //   final point = annotation.geometry;
+              //   final info = _markerInfo[point];
+              //   if (info != null) {
+              //     _showMarkerInfoDialog(info['label']!, info['address']!);
+              //   }
+              // });
               
               // Wait a bit for the map to be fully ready
               await Future.delayed(Duration(milliseconds: 1000));

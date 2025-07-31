@@ -23,6 +23,7 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
   String _distance = '';
   String _duration = '';
   bool _loading = true;
+  Map<Point, Map<String, String>> _markerInfo = {}; // Store marker info for popups
 
   @override
   void initState() {
@@ -128,35 +129,6 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
         id++;
       }
       
-      // Add a test polyline to verify map can display polylines
-      polylineOptions.add(
-        PolylineAnnotationOptions(
-          geometry: LineString(
-            coordinates: [
-              Position(-105.0, 39.7), // West of Denver
-              Position(-104.8, 39.9), // Northeast of Denver
-            ],
-          ),
-          lineColor: Colors.red.value,
-          lineWidth: 15.0, // Make it very thick to be visible
-        ),
-      );
-      
-      // Add another test polyline with different coordinates
-      polylineOptions.add(
-        PolylineAnnotationOptions(
-          geometry: LineString(
-            coordinates: [
-              Position(-104.9, 39.6), // South of Denver
-              Position(-104.9, 39.8), // North of Denver
-              Position(-104.7, 39.8), // Northeast
-            ],
-          ),
-          lineColor: Colors.green.value,
-          lineWidth: 12.0,
-        ),
-      );
-
       // Calculate total distance and duration
       double totalDist = route1['distance'] + route2['distance'];
       double totalDur = route1['duration'] + route2['duration'];
@@ -167,20 +139,40 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
         _polylineOptions = polylineOptions;
         _distance = dist;
         _duration = dur;
+        _markerInfo.clear(); // Clear previous marker info
+        
         _markerOptions = [
           PointAnnotationOptions(
             geometry: driverLoc,
-            iconImage: "marker-15", // Default Mapbox marker
+            iconImage: "marker-15", // Driver marker (blue)
+            iconColor: 0xFF1976D2, // Blue
           ),
           PointAnnotationOptions(
             geometry: pickup,
-            iconImage: "marker-15",
+            iconImage: "bus-15", // Pickup marker (green)
+            iconColor: 0xFF43A047, // Green
           ),
           PointAnnotationOptions(
             geometry: dropoff,
-            iconImage: "marker-15",
+            iconImage: "embassy-15", // Dropoff marker (red)
+            iconColor: 0xFFE53935, // Red
           ),
         ];
+        
+        // Store marker info for popups
+        _markerInfo[driverLoc] = {
+          'label': 'Driver',
+          'address': 'Current Location',
+        };
+        _markerInfo[pickup] = {
+          'label': 'Pickup',
+          'address': widget.passenger.pickupAddress,
+        };
+        _markerInfo[dropoff] = {
+          'label': 'Dropoff',
+          'address': widget.passenger.dropoffAddress,
+        };
+        
         _loading = false;
       });
       
@@ -203,6 +195,26 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
     }
+  }
+
+  void _showMarkerInfoDialog(String label, String address) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(label),
+          content: Text(address),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -238,6 +250,15 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
                       _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
                       _polylineAnnotationManager = await mapboxMap.annotations.createPolylineAnnotationManager();
                       print("Passenger detail: Annotation managers created");
+                      
+                      // TODO: Add marker tap listener when Mapbox API is fixed
+                      // _pointAnnotationManager!.addOnPointAnnotationClickListener((annotation) {
+                      //   final point = annotation.geometry;
+                      //   final info = _markerInfo[point];
+                      //   if (info != null) {
+                      //     _showMarkerInfoDialog(info['label']!, info['address']!);
+                      //   }
+                      // });
                       
                       // Wait a bit for the map to be fully ready
                       await Future.delayed(Duration(milliseconds: 1000));
