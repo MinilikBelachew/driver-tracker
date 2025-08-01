@@ -18,7 +18,7 @@ class NativeLocationService {
 
   static Future<void> startService({
     required String token,
-    required int driverId,
+    required String driverId,
     required String serverUrl,
   }) async {
     try {

@@ -51,11 +51,11 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String? _token;
-  int? _driverId;
+  String? _driverId;
   String? _driverName;
   bool _isLoadingAuth = true;
   final String _serverUrl =
-      'https://driver-cotrolling.onrender.com'; // Ensure this is your correct IP
+      'http://localhost:3000'; // Updated to use localhost:3001
 
   @override
   void initState() {
@@ -121,14 +121,14 @@ class _MyAppState extends State<MyApp> {
   Future<void> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
-    final driverId = prefs.getInt('driverId') ?? -1;
+    final driverId = prefs.getString('driverId');
     final driverName = prefs.getString('driverName');
 
     if (token != null && driverId != null && driverName != null) {
       // If logged in, automatically start the service if it's not already running
       await NativeLocationService.startService(
         token: token,
-        driverId: driverId,
+        driverId: driverId, // Convert string to int for service
         serverUrl: _serverUrl,
       );
       setState(() {
@@ -144,13 +144,13 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _onLoggedIn(
     String token,
-    int driverId,
+    String driverId,
     String driverName,
   ) async {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
       prefs.setString('token', token),
-      prefs.setInt('driverId', driverId),
+      prefs.setString('driverId', driverId),
       prefs.setString('driverName', driverName),
       prefs.setString('serverUrl', _serverUrl),
     ]);

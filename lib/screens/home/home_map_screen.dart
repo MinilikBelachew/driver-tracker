@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
@@ -9,13 +10,15 @@ import 'package:provider/provider.dart';
 import '../../providers/driver_location_provider.dart';
 import '../../providers/route_provider.dart';
 import '../../models/passenger.dart';
+import '../../services/passenger_service.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/modern_shimmer.dart';
 import '../../widgets/info_pill.dart';
 import '../../widgets/route_segement_card.dart';
 
 class HomeMapPage extends StatefulWidget {
-  const HomeMapPage({super.key});
+  final String driverId;
+  const HomeMapPage({super.key, required this.driverId});
   @override
   State<HomeMapPage> createState() => _HomeMapPageState();
 }
@@ -43,6 +46,51 @@ class _HomeMapPageState extends State<HomeMapPage> {
         _updateMapObjects();
       }
     });
+  }
+
+  // Function to add directional arrows to polylines
+  void _addDirectionalArrows(List<Point> polylinePoints, Color segmentColor, List<PointAnnotationOptions> markerOptions) {
+    if (polylinePoints.length < 2) return;
+    
+    // Add arrow at the end of the polyline
+    final lastPoint = polylinePoints.last;
+    final secondLastPoint = polylinePoints[polylinePoints.length - 2];
+    
+    // Calculate direction for the arrow
+    final dx = lastPoint.coordinates.lng - secondLastPoint.coordinates.lng;
+    final dy = lastPoint.coordinates.lat - secondLastPoint.coordinates.lat;
+    final angle = (180 / pi) * atan2(dy, dx);
+    
+    markerOptions.add(
+      PointAnnotationOptions(
+        geometry: lastPoint,
+        iconImage: "arrow-15", // Directional arrow
+        iconColor: segmentColor.value,
+        iconRotate: angle,
+        iconSize: 1.5,
+      ),
+    );
+    
+    // Add arrow in the middle of the polyline
+    if (polylinePoints.length > 3) {
+      final midIndex = polylinePoints.length ~/ 2;
+      final midPoint = polylinePoints[midIndex];
+      final prevPoint = polylinePoints[midIndex - 1];
+      
+      final midDx = midPoint.coordinates.lng - prevPoint.coordinates.lng;
+      final midDy = midPoint.coordinates.lat - prevPoint.coordinates.lat;
+      final midAngle = (180 / pi) * atan2(midDy, midDx);
+      
+      markerOptions.add(
+        PointAnnotationOptions(
+          geometry: midPoint,
+          iconImage: "arrow-15",
+          iconColor: segmentColor.value,
+          iconRotate: midAngle,
+          iconSize: 1.2,
+        ),
+      );
+    }
   }
 
   Future<void> _addMapObjects() async {
@@ -99,7 +147,6 @@ class _HomeMapPageState extends State<HomeMapPage> {
 
   Future<void> _initializeLocationAndRoute() async {
     print("Initializing location and route...");
-    print("Passenger list length: ${passengerList.length}");
     
     await context.read<DriverLocationProvider>().startTracking();
 
@@ -113,10 +160,23 @@ class _HomeMapPageState extends State<HomeMapPage> {
         driverProvider.currentLocation ?? Point(coordinates: Position(-104.9, 39.7));
     print("Driver location: ${driverLocation.coordinates.lat}, ${driverLocation.coordinates.lng}");
     
-    await context.read<RouteProvider>().buildCompleteRoute(
-      passengerList, // This should be imported from passenger.dart
-      driverLocation,
-    );
+    try {
+      // Fetch passengers from backend
+      final passengers = await PassengerService.fetchPassengersForDriver(widget.driverId);
+      print("Passenger list length: ${passengers.length}");
+      
+      await context.read<RouteProvider>().buildCompleteRoute(
+        passengers,
+        driverLocation,
+      );
+    } catch (e) {
+      print("Error fetching passengers: $e");
+      // Handle error - maybe show a snackbar or use empty list
+      await context.read<RouteProvider>().buildCompleteRoute(
+        [],
+        driverLocation,
+      );
+    }
 
     // _updateMapObjects() will be called automatically by the listener
   }
@@ -183,6 +243,30 @@ class _HomeMapPageState extends State<HomeMapPage> {
             lineWidth: 5.0,
           ),
         );
+        
+        // Add start location icon
+        if (segment.polylinePoints.isNotEmpty) {
+          markerOptions.add(
+            PointAnnotationOptions(
+              geometry: segment.polylinePoints.first,
+              iconImage: "marker-15",
+              iconColor: segment.color.value,
+              iconSize: 1.2,
+            ),
+          );
+        }
+        
+        // Add end location icon
+        if (segment.polylinePoints.length > 1) {
+          markerOptions.add(
+            PointAnnotationOptions(
+              geometry: segment.polylinePoints.last,
+              iconImage: "marker-15",
+              iconColor: segment.color.value,
+              iconSize: 1.2,
+            ),
+          );
+        }
       }
     } else {
       if (_selectedSegmentIndex >= 0 &&
@@ -219,6 +303,30 @@ class _HomeMapPageState extends State<HomeMapPage> {
             lineWidth: 5.0,
           ),
         );
+        
+        // Add start location icon
+        if (segment.polylinePoints.isNotEmpty) {
+          markerOptions.add(
+            PointAnnotationOptions(
+              geometry: segment.polylinePoints.first,
+              iconImage: "marker-15",
+              iconColor: segment.color.value,
+              iconSize: 1.2,
+            ),
+          );
+        }
+        
+        // Add end location icon
+        if (segment.polylinePoints.length > 1) {
+          markerOptions.add(
+            PointAnnotationOptions(
+              geometry: segment.polylinePoints.last,
+              iconImage: "marker-15",
+              iconColor: segment.color.value,
+              iconSize: 1.2,
+            ),
+          );
+        }
       }
     }
 

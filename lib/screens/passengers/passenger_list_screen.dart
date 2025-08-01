@@ -5,19 +5,93 @@ import 'package:flutter/material.dart';
 import 'dart:ui'; // for ImageFilter
 
 import '../../models/passenger.dart';
+import '../../services/passenger_service.dart';
 import '../../screens/passengers/passenger_detail_screen.dart';
 
 // -------------- Passenger List Page -------------
-class PassengerListPage extends StatelessWidget {
-  const PassengerListPage({super.key});
+class PassengerListPage extends StatefulWidget {
+  final String driverId;
+  const PassengerListPage({super.key, required this.driverId});
+
+  @override
+  State<PassengerListPage> createState() => _PassengerListPageState();
+}
+
+class _PassengerListPageState extends State<PassengerListPage> {
+  List<Passenger> _passengers = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPassengers();
+  }
+
+  Future<void> _loadPassengers() async {
+    try {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      
+      final passengers = await PassengerService.fetchPassengersForDriver(widget.driverId);
+      setState(() {
+        _passengers = passengers;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: Text("Passenger Schedule"), elevation: 0),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text("Passenger Schedule"), elevation: 0),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text("Error: $_error"),
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadPassengers,
+                child: Text("Retry"),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // Sort by earliest pickup time
-    List<Passenger> sorted = [...passengerList];
+    List<Passenger> sorted = [..._passengers];
     sorted.sort((a, b) => a.earliestPickup.compareTo(b.earliestPickup));
+    
     return Scaffold(
-      appBar: AppBar(title: Text("Passenger Schedule"), elevation: 0),
+      appBar: AppBar(
+        title: Text("Passenger Schedule"), 
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _loadPassengers,
+            tooltip: 'Refresh Passengers',
+          ),
+        ],
+      ),
       body: ListView.builder(
         padding: EdgeInsets.all(8),
         itemCount: sorted.length,

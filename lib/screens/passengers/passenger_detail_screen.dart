@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -115,17 +116,47 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
       print("Passenger detail: Route2 points: ${route2['polyline'].length}");
 
       List<PolylineAnnotationOptions> polylineOptions = [];
+      List<PointAnnotationOptions> routeMarkers = [];
       int id = 1;
+      
       for (var route in [route1, route2]) {
+        final polylinePoints = route['polyline'] as List<Point>;
+        final routeColor = id == 1 ? 0xFF2196F3 : 0xFFFF9800;
+        
         polylineOptions.add(
           PolylineAnnotationOptions(
             geometry: LineString(
-              coordinates: (route['polyline'] as List<Point>).map((p) => p.coordinates).toList(),
+              coordinates: polylinePoints.map((p) => p.coordinates).toList(),
             ),
-            lineColor: id == 1 ? 0xFF2196F3 : 0xFFFF9800,
+            lineColor: routeColor,
             lineWidth: 5.0,
           ),
         );
+        
+        // Add start location icon
+        if (polylinePoints.isNotEmpty) {
+          routeMarkers.add(
+            PointAnnotationOptions(
+              geometry: polylinePoints.first,
+              iconImage: "marker-15",
+              iconColor: routeColor,
+              iconSize: 1.2,
+            ),
+          );
+        }
+        
+        // Add end location icon
+        if (polylinePoints.length > 1) {
+          routeMarkers.add(
+            PointAnnotationOptions(
+              geometry: polylinePoints.last,
+              iconImage: "marker-15",
+              iconColor: routeColor,
+              iconSize: 1.2,
+            ),
+          );
+        }
+        
         id++;
       }
       
@@ -157,6 +188,7 @@ class _PassengerDetailPageState extends State<PassengerDetailPage> {
             iconImage: "embassy-15", // Dropoff marker (red)
             iconColor: 0xFFE53935, // Red
           ),
+          ...routeMarkers, // Add route start/end markers
         ];
         
         // Store marker info for popups

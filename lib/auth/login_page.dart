@@ -5,7 +5,7 @@ import 'dart:io';
 import 'dart:async';
 
 class LoginPage extends StatefulWidget {
-  final Function(String, int, String) onLoggedIn;
+  final Function(String, String, String) onLoggedIn;
   final String serverUrl;
 
   const LoginPage({

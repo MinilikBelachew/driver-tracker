@@ -7,7 +7,7 @@ import '../../services/native_location_service.dart';
 
 class TrackingPage extends StatefulWidget {
   final String token;
-  final int driverId;
+  final String driverId;
   final String driverName;
 
   const TrackingPage({

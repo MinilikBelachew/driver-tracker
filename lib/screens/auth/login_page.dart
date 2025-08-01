@@ -5,7 +5,7 @@ import 'dart:io';
 import 'dart:async';
 
 class LoginPage extends StatefulWidget {
-  final Function(String, int, String) onLoggedIn;
+  final Function(String, String, String) onLoggedIn;
   final String serverUrl;
 
   const LoginPage({
@@ -32,7 +32,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('${widget.serverUrl}/drivers/login'),
+        Uri.parse('${widget.serverUrl}/api/v1/drivers/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'mdtUsername': _userCtrl.text.trim(),
@@ -43,7 +43,8 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        widget.onLoggedIn(data['token'], data['driverId'], data['name']);
+        final driver = data['driver'];
+        widget.onLoggedIn(data['token'], driver['id'], driver['name']);
       } else {
         final error = jsonDecode(response.body)['error'] ?? 'Login failed';
         ScaffoldMessenger.of(context).showSnackBar(

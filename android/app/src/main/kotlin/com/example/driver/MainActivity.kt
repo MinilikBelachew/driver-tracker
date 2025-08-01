@@ -53,7 +53,7 @@ class MainActivity : FlutterActivity() {
 
     private fun handleStartService(call: MethodCall, result: Result) {
         val token = call.argument<String>("token")
-        val driverId = call.argument<Int>("driverId")
+        val driverId = call.argument<String>("driverId")
         val serverUrl = call.argument<String>("serverUrl")
 
         if (token == null || driverId == null || serverUrl == null) {
@@ -71,7 +71,7 @@ class MainActivity : FlutterActivity() {
         result.success("Service Stopped")
     }
 
-    private fun startLocationService(token: String, driverId: Int, serverUrl: String) {
+    private fun startLocationService(token: String, driverId: String, serverUrl: String) {
         val serviceIntent = Intent(this, LocationService::class.java).apply {
             putExtra("token", token)
             putExtra("driverId", driverId)

@@ -8,7 +8,7 @@ import '../../screens/tracking_page/tracking_page.dart'; // Corrected import pat
 
 class MainScreen extends StatefulWidget {
   final String token;
-  final int driverId;
+  final String driverId;
   final String driverName;
   final VoidCallback onLogout;
 
@@ -39,10 +39,14 @@ class _MainScreenState extends State<MainScreen> {
         driverId: widget.driverId,
         driverName: widget.driverName,
       ),
-      const HomeMapPage(),
-      const PassengerListPage(),
-      ProfilePage()
-      ,
+      HomeMapPage(driverId: widget.driverId),
+      PassengerListPage(driverId: widget.driverId),
+      ProfilePage(
+        token: widget.token,
+        driverId: widget.driverId,
+        driverName: widget.driverName,
+        onLogout: widget.onLogout,
+      ),
       const SettingsPage(),
     ];
   }

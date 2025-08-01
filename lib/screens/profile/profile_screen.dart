@@ -1,18 +1,59 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Import provider
-import '../../providers/auth_provider.dart'; // Import your AuthProvider
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // -------------- Profile Page --------------
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
+class ProfilePage extends StatefulWidget {
+  final String token;
+  final String driverId;
+  final String driverName;
+  final VoidCallback onLogout;
+
+  const ProfilePage({
+    super.key,
+    required this.token,
+    required this.driverId,
+    required this.driverName,
+    required this.onLogout,
+  });
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  Map<String, dynamic>? _driverData;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDriverData();
+  }
+
+  Future<void> _loadDriverData() async {
+    try {
+      // For now, we'll use the data passed from login
+      // In the future, you can fetch additional driver data here
+      setState(() {
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Watch the AuthProvider to react to changes in authentication state
-   
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Driver Profile")),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    // Get driver information from the AuthProvider
-   
     return Scaffold(
       appBar: AppBar(
         title: const Text("Driver Profile"),
@@ -20,7 +61,6 @@ class ProfilePage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () {
-              // TODO: Implement profile editing functionality
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Profile editing coming soon!')),
               );
@@ -45,7 +85,7 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "driverName", // Display actual driver name
+                  widget.driverName,
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -53,7 +93,7 @@ class ProfilePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "mdtUsername", // Display actual MDT username
+                  "Driver ID: ${widget.driverId}",
                   style: TextStyle(
                     fontSize: 16,
                     color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
@@ -66,14 +106,13 @@ class ProfilePage extends StatelessWidget {
           ProfileInfoCard(
             title: "Driver Information",
             items: [
-              ProfileInfoItem(label: "ID", value: "driverId"), // Display actual driver ID
-              const ProfileInfoItem(label: "Phone", value: "+1 (555) 123-4567"), // Dummy data, replace with actual
-              const ProfileInfoItem(label: "License", value: "CO-12345678"), // Dummy data, replace with actual
-              const ProfileInfoItem(label: "Vehicle", value: "Honda Civic (2023)"), // Dummy data, replace with actual
+              ProfileInfoItem(label: "ID", value: widget.driverId),
+              const ProfileInfoItem(label: "Status", value: "Active"),
+              const ProfileInfoItem(label: "Vehicle", value: "Chevrolet Express"),
+              const ProfileInfoItem(label: "Capacity", value: "6 passengers"),
             ],
           ),
           const SizedBox(height: 16),
-          // You might want to fetch and display actual statistics here
           ProfileInfoCard(
             title: "Statistics",
             items: [
@@ -91,8 +130,28 @@ class ProfilePage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
             onPressed: () {
-              // Call the logout method from AuthProvider
-              
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text('Sign Out'),
+                    content: const Text('Are you sure you want to sign out?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          widget.onLogout();
+                        },
+                        child: const Text('Sign Out'),
+                      ),
+                    ],
+                  );
+                },
+              );
             },
           ),
         ],
@@ -106,7 +165,7 @@ class ProfileInfoCard extends StatelessWidget {
   final List<ProfileInfoItem> items;
 
   const ProfileInfoCard({
-    super.key, // Added super.key
+    super.key,
     required this.title,
     required this.items,
   });
