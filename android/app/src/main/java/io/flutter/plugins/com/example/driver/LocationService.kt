@@ -95,7 +95,7 @@ class LocationService : Service() {
 
         if (token != null && driverId.isNotEmpty() && serverUrl != null) {
             startLocationUpdates()
-            connectSocket(serverUrl!!)
+            connectSocket(serverUrl)
         } else {
             stopSelf()
         }

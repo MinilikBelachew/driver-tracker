@@ -27,7 +27,7 @@ class BootReceiver : BroadcastReceiver() {
         val driverId = prefs.getString("flutter.driverId", "")
         val serverUrl = prefs.getString("flutter.serverUrl", "https://driver-cotrolling.onrender.com")
 
-        if (token != null && driverId.isNotEmpty()) {
+        if (token != null && driverId != null && driverId.isNotEmpty()) {
             val serviceIntent = Intent(context, LocationService::class.java).apply {
                 putExtra("token", token)
                 putExtra("driverId", driverId)
