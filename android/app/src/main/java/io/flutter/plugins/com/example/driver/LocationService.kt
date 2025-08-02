@@ -29,7 +29,7 @@ class LocationService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private var socket: Socket? = null
-    private var driverId: String = ""
+    private var driverId: Int = -1
     private var token: String? = null
     private var serverUrl: String? = null
 
@@ -71,40 +71,37 @@ class LocationService : Service() {
         Log.d("LocationService", "Service created")
     }
 
-override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    Log.d("LocationService", "Service starting")
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("LocationService", "Service starting")
 
-    if (intent == null) {
-        val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
-        token = prefs.getString("flutter.token", null)
-        driverId = prefs.getString("flutter.driverId", "")
-        serverUrl = prefs.getString("flutter.serverUrl", null)
+        if (intent == null) {
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            token = prefs.getString("flutter.token", null)
+            driverId = prefs.getInt("flutter.driverId", -1)
+            serverUrl = prefs.getString("flutter.serverUrl", null)
 
-        if (token == null || driverId.isEmpty() || serverUrl.isNullOrEmpty()) {
-            stopSelf()
-            return START_NOT_STICKY
+            if (token == null || driverId == -1 || serverUrl == null) {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+        } else {
+            token = intent.getStringExtra("token")
+            driverId = intent.getIntExtra("driverId", -1)
+            serverUrl = intent.getStringExtra("serverUrl")
         }
-    } else {
-        token = intent.getStringExtra("token")
-        driverId = intent.getStringExtra("driverId") ?: ""
-        serverUrl = intent.getStringExtra("serverUrl")
+
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification("Your location is being shared"))
+
+        if (token != null && driverId != -1 && serverUrl != null) {
+            startLocationUpdates()
+            connectSocket(serverUrl!!)
+        } else {
+            stopSelf()
+        }
+
+        return START_STICKY
     }
-
-    createNotificationChannel()
-    startForeground(NOTIFICATION_ID, buildNotification("Your location is being shared"))
-
-    // The key change is here. This check ensures all variables are not null
-    if (token != null && driverId.isNotEmpty() && !serverUrl.isNullOrEmpty()) {
-        startLocationUpdates()
-        // Here, we're confident that serverUrl is not null, so we can use it safely
-        connectSocket(serverUrl!!)
-    } else {
-        Log.e("LocationService", "Missing required parameters, stopping service.")
-        stopSelf()
-    }
-
-    return START_STICKY
-}
 
     // <-- MODIFIED: Added a parameter to update the notification text
     private fun buildNotification(contentText: String): Notification {

@@ -24,10 +24,10 @@ class BootReceiver : BroadcastReceiver() {
     private fun startLocationService(context: Context) {
         val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
         val token = prefs.getString("flutter.token", null)
-        val driverId = prefs.getString("flutter.driverId", "")
+        val driverId = prefs.getLong("flutter.driverId", -1L).toInt()
         val serverUrl = prefs.getString("flutter.serverUrl", "https://driver-cotrolling.onrender.com")
 
-        if (token != null && driverId != null && driverId.isNotEmpty()) {
+        if (token != null && driverId != -1) {
             val serviceIntent = Intent(context, LocationService::class.java).apply {
                 putExtra("token", token)
                 putExtra("driverId", driverId)
