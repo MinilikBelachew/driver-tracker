@@ -31,7 +31,7 @@ class LocationService : Service() {
     private var socket: Socket? = null
     private var driverId: String = ""
     private var token: String? = null
-    private var serverUrl: String? = null
+    private var serverUrl: String = ""
 
     companion object {
         private var eventSink: EventChannel.EventSink? = null
@@ -78,24 +78,24 @@ class LocationService : Service() {
             val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             token = prefs.getString("flutter.token", null)
             driverId = prefs.getString("flutter.driverId", "")
-            serverUrl = prefs.getString("flutter.serverUrl", null)
+            serverUrl = prefs.getString("flutter.serverUrl", "") ?: ""
 
-            if (token == null || driverId.isEmpty() || serverUrl == null) {
+            if (token == null || driverId.isEmpty() || serverUrl.isEmpty()) {
                 stopSelf()
                 return START_NOT_STICKY
             }
         } else {
             token = intent.getStringExtra("token")
             driverId = intent.getStringExtra("driverId") ?: ""
-            serverUrl = intent.getStringExtra("serverUrl")
+            serverUrl = intent.getStringExtra("serverUrl") ?: ""
         }
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Your location is being shared"))
 
-        if (token != null && driverId.isNotEmpty() && serverUrl != null) {
+        if (token != null && driverId.isNotEmpty() && serverUrl.isNotEmpty()) {
             startLocationUpdates()
-            connectSocket(serverUrl!!)
+            connectSocket(serverUrl)
         } else {
             stopSelf()
         }
