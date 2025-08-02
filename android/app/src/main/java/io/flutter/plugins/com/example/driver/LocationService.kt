@@ -87,7 +87,8 @@ class LocationService : Service() {
         } else {
             token = intent.getStringExtra("token")
             driverId = intent.getStringExtra("driverId") ?: ""
-            serverUrl = intent.getStringExtra("serverUrl") ?: ""
+            val serverUrlExtra = intent.getStringExtra("serverUrl")
+            serverUrl = serverUrlExtra ?: ""
         }
 
         createNotificationChannel()
