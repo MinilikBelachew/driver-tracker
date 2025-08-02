@@ -78,7 +78,8 @@ class LocationService : Service() {
             val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
             token = prefs.getString("flutter.token", null)
             driverId = prefs.getString("flutter.driverId", "")
-            serverUrl = prefs.getString("flutter.serverUrl", "") ?: ""
+            val serverUrlPref = prefs.getString("flutter.serverUrl", "")
+            serverUrl = serverUrlPref ?: ""
 
             if (token == null || driverId.isEmpty() || serverUrl.isEmpty()) {
                 stopSelf()
