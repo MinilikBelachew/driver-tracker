@@ -95,7 +95,8 @@ class LocationService : Service() {
 
         if (token != null && driverId.isNotEmpty() && !serverUrl.isNullOrEmpty()) {
             startLocationUpdates()
-            connectSocket(serverUrl!!)
+            val currentServerUrl = serverUrl!!
+            connectSocket(currentServerUrl)
         } else {
             stopSelf()
         }
