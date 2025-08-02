@@ -93,10 +93,9 @@ class LocationService : Service() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification("Your location is being shared"))
 
-        val currentServerUrl = serverUrl
-        if (token != null && driverId.isNotEmpty() && currentServerUrl != null) {
+        if (token != null && driverId.isNotEmpty() && serverUrl != null) {
             startLocationUpdates()
-            connectSocket(currentServerUrl)
+            connectSocket(serverUrl!!)
         } else {
             stopSelf()
         }
