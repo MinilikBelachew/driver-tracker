@@ -2,7 +2,7 @@ import 'package:driver/screens/main_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../auth/login_page.dart';
+import '../screens/auth/login_page.dart';
 import '../providers/theme_provider.dart';
 
 import '../services/native_location_service.dart';
@@ -55,7 +55,7 @@ class _MyAppState extends State<MyApp> {
   String? _driverName;
   bool _isLoadingAuth = true;
   final String _serverUrl =
-      'http://localhost:3000'; // Updated to use localhost:3001
+      'http://10.0.2.2:3000'; // Updated to use localhost:3001
 
   @override
   void initState() {

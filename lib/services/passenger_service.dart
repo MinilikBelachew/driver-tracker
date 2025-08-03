@@ -4,7 +4,7 @@ import '../models/passenger.dart';
 
 class PassengerService {
   static Future<List<Passenger>> fetchPassengersForDriver(String driverId) async {
-    final url = 'http://localhost:3000/api/v1/assignment/driversAssignment/$driverId';
+    final url = 'http://10.0.2.2:3000/api/v1/assignment/driversAssignment/$driverId';
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
