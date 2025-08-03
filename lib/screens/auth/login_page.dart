@@ -11,7 +11,7 @@ class LoginPage extends StatefulWidget {
   const LoginPage({
     super.key,
     required this.onLoggedIn,
-      required this.serverUrl,
+    required this.serverUrl,
   });
 
   @override
@@ -31,6 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     }
     setState(() => _isLoading = true);
     try {
+      print('Attempting to log in to: ${widget.serverUrl}/api/v1/drivers/login');
       final response = await http.post(
         Uri.parse('${widget.serverUrl}/api/v1/drivers/login'),
         headers: {'Content-Type': 'application/json'},
@@ -41,12 +42,19 @@ class _LoginPageState extends State<LoginPage> {
       ).timeout(const Duration(seconds: 15));
 
       if (!mounted) return;
+
+      // Log the response for debugging
+      print('Response Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final driver = data['driver'];
         widget.onLoggedIn(data['token'], driver['id'], driver['name']);
       } else {
-        final error = jsonDecode(response.body)['error'] ?? 'Login failed';
+        // Handle non-200 responses with more detail
+        final responseBody = jsonDecode(response.body);
+        final error = responseBody['message'] ?? responseBody['error'] ?? 'Login failed';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error),
@@ -60,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
     } on SocketException {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Network error. Please check connection.'),
+          content: const Text('Network error. Please check your connection.'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -70,17 +78,20 @@ class _LoginPageState extends State<LoginPage> {
     } on TimeoutException {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Connection timeout.'),
+          content: const Text('Connection timeout. The server took too long to respond.'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
         ),
       );
-    } catch (e) {
+    } catch (e, stacktrace) {
+      // Catch any other unexpected errors and print the stack trace for debugging
+      print('An unexpected error occurred: $e');
+      print('Stack trace: $stacktrace');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('An unexpected error occurred.'),
+          content: const Text('An unexpected error occurred. See console for details.'),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
